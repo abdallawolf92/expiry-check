@@ -2,8 +2,19 @@ import pandas as pd
 import streamlit as st
 import os
 
-st.set_page_config(page_title="📊 البحث عن المواد في الاكسل", layout="wide")
-st.title("📊 برنامج البحث عن المواد")
+st.set_page_config(page_title="🩺 Expiry Tracker", layout="wide")
+st.title("🩺 Expiry Tracker")
+
+# تحسين عرض الجدول على الموبايل
+st.markdown(
+    """
+    <style>
+    .stDataFrame div[data-testid="stVerticalBlock"] {overflow-x: auto;}
+    .stDataFrame table {font-size: 18px;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 file_path = "المواد.xlsx"
 
@@ -38,4 +49,4 @@ if os.path.exists(file_path):
 
         st.dataframe(filtered_df, use_container_width=True)
 else:
-    st.warning("⚠️ لم يتم العثور على الملف داخل مجلد uploaded_excel. يرجى وضع ملف المواد داخل المجلد بالاسم المناسب.")
+    st.warning("⚠️ لم يتم العثور على الملف داخل مجلد المشروع. يرجى رفع ملف المواد بالاسم المناسب.")
