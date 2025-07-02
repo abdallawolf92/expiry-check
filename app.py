@@ -1,6 +1,13 @@
 import pandas as pd
 import streamlit as st
 import os
+from datetime import datetime
+
+# حماية بكلمة مرور
+password = st.text_input("🔒 أدخل كلمة المرور", type="password")
+if password != "12345":  # يمكنك تغيير كلمة المرور هنا
+    st.warning("🚫 كلمة المرور غير صحيحة.")
+    st.stop()
 
 st.set_page_config(page_title="🩺 Expiry Tracker", layout="wide")
 st.title("🩺 Expiry Tracker")
@@ -42,6 +49,21 @@ if os.path.exists(file_path):
 
         # إزالة القيم الفارغة
         filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
+
+        # حساب الأيام المتبقية
+        filtered_df['الأيام المتبقية'] = (filtered_df['تاريخ الصلاحية'] - pd.Timestamp(datetime.now())).dt.days
+
+        # إضافة عمود الخصم حسب الأيام المتبقية
+        def calculate_discount(days_left):
+            if days_left <= 30:
+                return "خصم 75%"
+            elif days_left <= 60:
+                return "خصم 50%"
+            elif days_left <= 90:
+                return "خصم 25%"
+            else:
+                return ""
+        filtered_df['الخصم'] = filtered_df['الأيام المتبقية'].apply(calculate_discount)
 
         # اختيار أقرب تاريخ صلاحية فقط لكل اسم مادة
         idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
