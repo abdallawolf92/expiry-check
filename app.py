@@ -5,7 +5,7 @@ import os
 st.set_page_config(page_title="📊 البحث عن المواد في الاكسل", layout="wide")
 st.title("📊 برنامج البحث عن المواد")
 
-file_path = "uploaded_excel/المواد.xlsx"
+file_path = "المواد.xlsx"
 
 if os.path.exists(file_path):
     try:
