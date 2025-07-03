@@ -2,11 +2,17 @@ import pandas as pd
 import streamlit as st
 import os
 from datetime import datetime
+from PIL import Image
 
 # إعداد الصفحة
-st.set_page_config(page_title="📊 برنامج البحث عن المواد", page_icon="📊", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Expiry Checker",
+    page_icon="🧪",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# تخصيص CSS لتحسين الشكل
+# تخصيص CSS لتحسين الشكل للموبايل
 st.markdown("""
     <style>
     .big-font {font-size:30px !important; text-align: center;}
@@ -16,17 +22,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# عنوان البرنامج
-st.markdown('<p class="big-font">📊 برنامج البحث عن المواد في المخزن</p>', unsafe_allow_html=True)
+# عرض اللوگو والاسم
+if os.path.exists("logo.png"):
+    logo = Image.open("logo.png")
+    st.image(logo, width=150)
+st.markdown('<p class="big-font">Expiry Checker 🧪</p>', unsafe_allow_html=True)
 
+# الإعدادات
 file_path = "المواد.xlsx"
 PASSWORD = "2025"
 
-# تحسين شكل إدخال كلمة المرور
-password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور للدخول:", type="password", help="أدخل كلمة السر ثم اضغط Enter")
+# إدخال كلمة السر
+password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password", help="اكتب كلمة المرور ثم اضغط Enter")
 
 if password_input == PASSWORD:
-    st.success("✅ تم تسجيل الدخول بنجاح. يمكنك الآن البحث عن المواد.")
+    st.success("✅ تم تسجيل الدخول بنجاح، يمكنك الآن البحث عن المواد.")
 
     if os.path.exists(file_path):
         try:
@@ -45,14 +55,17 @@ if password_input == PASSWORD:
         if search_query:
             filtered_df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False)].copy()
 
-            # تنظيف وتحويل التاريخ
+            # تحويل التاريخ
             filtered_df['تاريخ الصلاحية'] = filtered_df['تاريخ الصلاحية'].astype(str).str.replace('ص', 'AM').str.replace('م', 'PM')
-            filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce', dayfirst=True)
-
-            # إزالة الصفوف التي لا تحتوي تاريخ صالح
+            filtered_df['تاريخ الصلاحية'] = pd.to_datetime(
+                filtered_df['تاريخ الصلاحية'],
+                format='%d/%m/%Y %I:%M:%S %p',
+                errors='coerce',
+                dayfirst=True
+            )
             filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
 
-            # فلترة أقرب تاريخ صلاحية لكل مادة
+            # اختيار أقرب تاريخ صلاحية لكل مادة
             idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
@@ -72,8 +85,6 @@ if password_input == PASSWORD:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
             st.success(f"✅ تم العثور على {len(filtered_df)} نتيجة.")
-
-            # عرض النتائج بجدول جميل
             st.dataframe(
                 filtered_df.style.set_properties(**{
                     'background-color': '#f9f9f9',
@@ -88,4 +99,4 @@ if password_input == PASSWORD:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 else:
     if password_input != "":
-        st.error("❌ كلمة المرور غير صحيحة. حاول مرة أخرى.")
+        st.error("❌ كلمة المرور غير صحيحة.")
