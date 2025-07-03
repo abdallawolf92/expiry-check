@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from PIL import Image
 import hashlib
 import socket
@@ -33,6 +33,9 @@ if user_count == 0:
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+# تحديث توقيت بغداد (UTC+3)
+baghdad_tz = timezone(timedelta(hours=3))
+
 # نظام الخروج التلقائي بعد 30 ثانية
 c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
 active_users = c.fetchall()
@@ -40,7 +43,7 @@ for user in active_users:
     user_id, last_login, is_logged_in = user
     if last_login:
         last_login_time = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
-        if datetime.now() - last_login_time > timedelta(seconds=30):
+        if datetime.now(baghdad_tz) - last_login_time.replace(tzinfo=baghdad_tz) > timedelta(seconds=30):
             c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
             conn.commit()
 
@@ -65,8 +68,9 @@ if st.button("تسجيل الدخول"):
                 if is_logged_in:
                     st.error("❌ هذا الحساب مسجل دخول في مكان آخر.")
                 else:
+                    current_time = datetime.now(baghdad_tz).strftime("%Y-%m-%d %H:%M:%S")
                     c.execute("UPDATE users SET last_login = ?, is_logged_in = 1, ip_address = ? WHERE id = ?",
-                              (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), ip_address, user_id))
+                              (current_time, ip_address, user_id))
                     conn.commit()
                     st.success("✅ تم تسجيل الدخول بنجاح.")
                     st.session_state['logged_in'] = True
@@ -138,7 +142,7 @@ if st.session_state.get('logged_in'):
 
 if st.session_state.get('username') == 'admin':
     st.markdown("## 📊 لوحة التحكم")
-    user_stats = pd.read_sql_query("SELECT username, last_login, ip_address FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC", conn)
+    user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC", conn)
     st.dataframe(user_stats)
     count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
     st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
@@ -157,5 +161,15 @@ if st.session_state.get('username') == 'admin':
                 st.error("❌ اسم المستخدم موجود مسبقًا.")
         else:
             st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
+
+    st.markdown("## 🗑️ حذف مستخدم")
+    delete_user_id = st.number_input("أدخل رقم ID للمستخدم المراد حذفه:", min_value=1, step=1)
+    if st.button("🗑️ حذف المستخدم"):
+        try:
+            c.execute("DELETE FROM users WHERE id = ? AND username != 'admin'", (delete_user_id,))
+            conn.commit()
+            st.success("✅ تم حذف المستخدم بنجاح (لا يمكن حذف admin).")
+        except Exception as e:
+            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
 conn.close()
