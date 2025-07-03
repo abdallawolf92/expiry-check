@@ -21,6 +21,15 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
             )''')
 conn.commit()
 
+# إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
+c.execute("SELECT COUNT(*) FROM users")
+user_count = c.fetchone()[0]
+if user_count == 0:
+    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+              ("admin", hashlib.sha256("2025".encode()).hexdigest()))
+    conn.commit()
+    st.success("✅ تم إنشاء حساب Admin تلقائي (admin/2025) عند أول تشغيل.")
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
