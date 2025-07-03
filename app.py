@@ -6,11 +6,8 @@ st.set_page_config(page_title="📊 البحث عن المواد في الاكس
 st.title("📊 برنامج البحث عن المواد")
 
 file_path = "المواد.xlsx"
-
-# كلمة السر الخاصة بك
 PASSWORD = "2025"
 
-# إدخال كلمة المرور
 password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password")
 if st.button("دخول"):
     if password_input == PASSWORD:
@@ -32,20 +29,10 @@ if st.button("دخول"):
             if search_query:
                 filtered_df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False)].copy()
 
-                # استبدال ص و م بالانكليزية
-                filtered_df['تاريخ الصلاحية'] = filtered_df['تاريخ الصلاحية'].astype(str).str.replace('ص', 'AM').str.replace('م', 'PM')
-
-                # تحويل إلى datetime
-                filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce', dayfirst=True)
-
-                # إزالة القيم الفارغة
-                filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-
-                # اختيار أقرب تاريخ صلاحية فقط لكل اسم مادة
-                idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
-                filtered_df = filtered_df.loc[idx].reset_index(drop=True)
-
+                # عرض النتائج مباشرة بدون فلترة التاريخ
+                st.write("🟩 النتائج بعد البحث:")
                 st.dataframe(filtered_df, use_container_width=True)
+
         else:
             st.warning("⚠️ لم يتم العثور على الملف داخل المستودع.")
     else:
