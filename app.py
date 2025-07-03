@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from PIL import Image
 import hashlib
 import socket
@@ -32,6 +32,17 @@ if user_count == 0:
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# نظام الخروج التلقائي بعد 30 ثانية
+c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
+active_users = c.fetchall()
+for user in active_users:
+    user_id, last_login, is_logged_in = user
+    if last_login:
+        last_login_time = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
+        if datetime.now() - last_login_time > timedelta(seconds=30):
+            c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
+            conn.commit()
 
 if os.path.exists("logo.png"):
     logo = Image.open("logo.png")
