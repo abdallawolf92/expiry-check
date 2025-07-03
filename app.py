@@ -4,35 +4,29 @@ import os
 from datetime import datetime
 from PIL import Image
 
-# إعداد الصفحة
-st.set_page_config(
-    page_title="Expiry Checker",
-    page_icon="🧪",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# تخصيص CSS لتحسين الشكل للموبايل
+# تخصيص CSS احترافي
 st.markdown("""
     <style>
-    .big-font {font-size:30px !important; text-align: center;}
+    .big-font {font-size:36px !important; text-align: center; font-weight: bold;}
+    .center {text-align: center;}
     .stTextInput input {font-size: 18px; padding: 10px;}
     .stButton>button {font-size:18px; padding: 0.5em 2em;}
     .css-1l269bu {padding-top: 2rem;}
+    .small-font {font-size:18px !important;}
     </style>
 """, unsafe_allow_html=True)
 
-# عرض اللوگو والاسم
+# اللوگو والاسم
 if os.path.exists("logo.png"):
     logo = Image.open("logo.png")
-    st.image(logo, width=150)
+    st.image(logo, width=120)
 st.markdown('<p class="big-font">Expiry Checker 🧪</p>', unsafe_allow_html=True)
 
-# الإعدادات
 file_path = "المواد.xlsx"
 PASSWORD = "2025"
 
-# إدخال كلمة السر
 password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password", help="اكتب كلمة المرور ثم اضغط Enter")
 
 if password_input == PASSWORD:
@@ -46,10 +40,9 @@ if password_input == PASSWORD:
             st.stop()
 
         if not {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}.issubset(df.columns):
-            st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة: اسم المادة، رقم الدفعة، تاريخ الصلاحية.")
+            st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
             st.stop()
 
-        # مربع البحث
         search_query = st.text_input("🔎 ابحث باسم المادة هنا 👇", placeholder="اكتب اسم المادة للبحث...")
 
         if search_query:
@@ -65,7 +58,7 @@ if password_input == PASSWORD:
             )
             filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
 
-            # اختيار أقرب تاريخ صلاحية لكل مادة
+            # أقرب تاريخ صلاحية
             idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
@@ -84,16 +77,25 @@ if password_input == PASSWORD:
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            st.success(f"✅ تم العثور على {len(filtered_df)} نتيجة.")
-            st.dataframe(
-                filtered_df.style.set_properties(**{
-                    'background-color': '#f9f9f9',
-                    'color': '#000',
-                    'border-color': 'white',
-                    'text-align': 'center'
-                }),
-                use_container_width=True
-            )
+            # عداد النتائج
+            st.markdown(f"<p class='center small-font'>📦 عدد النتائج: <b>{len(filtered_df)}</b></p>", unsafe_allow_html=True)
+
+            # تلوين الخصم
+            def color_discount(val):
+                color = ""
+                if val == "خصم 75%":
+                    color = 'background-color: #ff9999; color: black;'
+                elif val == "خصم 50%":
+                    color = 'background-color: #ffcc99; color: black;'
+                elif val == "خصم 25%":
+                    color = 'background-color: #ffff99; color: black;'
+                elif val == "لا يوجد خصم":
+                    color = 'background-color: #ccffcc; color: black;'
+                return color
+
+            styled_df = filtered_df.style.applymap(color_discount, subset=['الخصم'])
+
+            st.dataframe(styled_df, use_container_width=True)
 
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
