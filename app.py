@@ -3,15 +3,30 @@ import streamlit as st
 import os
 from datetime import datetime
 
-st.set_page_config(page_title="📊 البحث عن المواد في الاكسل", layout="wide")
-st.title("📊 برنامج البحث عن المواد")
+# إعداد الصفحة
+st.set_page_config(page_title="📊 برنامج البحث عن المواد", page_icon="📊", layout="wide", initial_sidebar_state="collapsed")
+
+# تخصيص CSS لتحسين الشكل
+st.markdown("""
+    <style>
+    .big-font {font-size:30px !important; text-align: center;}
+    .stTextInput input {font-size: 18px; padding: 10px;}
+    .stButton>button {font-size:18px; padding: 0.5em 2em;}
+    .css-1l269bu {padding-top: 2rem;}
+    </style>
+""", unsafe_allow_html=True)
+
+# عنوان البرنامج
+st.markdown('<p class="big-font">📊 برنامج البحث عن المواد في المخزن</p>', unsafe_allow_html=True)
 
 file_path = "المواد.xlsx"
 PASSWORD = "2025"
 
-password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password")
+# تحسين شكل إدخال كلمة المرور
+password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور للدخول:", type="password", help="أدخل كلمة السر ثم اضغط Enter")
+
 if password_input == PASSWORD:
-    st.success("✅ تم تسجيل الدخول بنجاح.")
+    st.success("✅ تم تسجيل الدخول بنجاح. يمكنك الآن البحث عن المواد.")
 
     if os.path.exists(file_path):
         try:
@@ -24,7 +39,8 @@ if password_input == PASSWORD:
             st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة: اسم المادة، رقم الدفعة، تاريخ الصلاحية.")
             st.stop()
 
-        search_query = st.text_input("🔎 ابحث باسم المادة")
+        # مربع البحث
+        search_query = st.text_input("🔎 ابحث باسم المادة هنا 👇", placeholder="اكتب اسم المادة للبحث...")
 
         if search_query:
             filtered_df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False)].copy()
@@ -55,11 +71,21 @@ if password_input == PASSWORD:
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            st.write("🟩 أقرب تاريخ صلاحية لكل مادة مع الخصومات:")
-            st.dataframe(filtered_df, use_container_width=True)
+            st.success(f"✅ تم العثور على {len(filtered_df)} نتيجة.")
+
+            # عرض النتائج بجدول جميل
+            st.dataframe(
+                filtered_df.style.set_properties(**{
+                    'background-color': '#f9f9f9',
+                    'color': '#000',
+                    'border-color': 'white',
+                    'text-align': 'center'
+                }),
+                use_container_width=True
+            )
 
     else:
-        st.warning("⚠️ لم يتم العثور على الملف داخل المستودع.")
+        st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 else:
     if password_input != "":
-        st.error("❌ كلمة المرور غير صحيحة.")
+        st.error("❌ كلمة المرور غير صحيحة. حاول مرة أخرى.")
