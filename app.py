@@ -8,19 +8,11 @@ st.title("📊 برنامج البحث عن المواد")
 file_path = "المواد.xlsx"
 PASSWORD = "2025"
 
-# استخدام session_state لحفظ حالة تسجيل الدخول
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# إدخال كلمة المرور فقط بدون جلسة معقدة
+password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password")
+if password_input == PASSWORD:
+    st.success("✅ تم تسجيل الدخول بنجاح.")
 
-if not st.session_state.authenticated:
-    password_input = st.text_input("🔑 الرجاء إدخال كلمة المرور:", type="password")
-    if st.button("دخول"):
-        if password_input == PASSWORD:
-            st.session_state.authenticated = True
-            st.success("✅ تم تسجيل الدخول بنجاح.")
-        else:
-            st.error("❌ كلمة المرور غير صحيحة.")
-else:
     if os.path.exists(file_path):
         try:
             df = pd.read_excel(file_path)
@@ -42,3 +34,6 @@ else:
 
     else:
         st.warning("⚠️ لم يتم العثور على الملف داخل المستودع.")
+else:
+    if password_input != "":
+        st.error("❌ كلمة المرور غير صحيحة.")
