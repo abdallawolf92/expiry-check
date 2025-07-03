@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import os
+from datetime import datetime
 
 st.set_page_config(page_title="📊 البحث عن المواد في الاكسل", layout="wide")
 st.title("📊 برنامج البحث عن المواد")
@@ -39,7 +40,22 @@ if password_input == PASSWORD:
             idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
-            st.write("🟩 أقرب تاريخ صلاحية لكل مادة:")
+            # إضافة عمود الخصم
+            today = pd.Timestamp(datetime.today().date())
+            filtered_df['الخصم'] = ""
+
+            for i, row in filtered_df.iterrows():
+                days_left = (row['تاريخ الصلاحية'] - today).days
+                if days_left <= 30:
+                    filtered_df.at[i, 'الخصم'] = "خصم 75%"
+                elif days_left <= 60:
+                    filtered_df.at[i, 'الخصم'] = "خصم 50%"
+                elif days_left <= 90:
+                    filtered_df.at[i, 'الخصم'] = "خصم 25%"
+                else:
+                    filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
+
+            st.write("🟩 أقرب تاريخ صلاحية لكل مادة مع الخصومات:")
             st.dataframe(filtered_df, use_container_width=True)
 
     else:
