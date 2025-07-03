@@ -142,7 +142,8 @@ if st.session_state.get('logged_in'):
 
 if st.session_state.get('username') == 'admin':
     st.markdown("## 📊 لوحة التحكم")
-    user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC", conn)
+    # تحديث: عرض جميع المستخدمين بما فيهم الذين لم يسجلوا دخول بعد
+    user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
     st.dataframe(user_stats)
     count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
     st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
