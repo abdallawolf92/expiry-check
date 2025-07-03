@@ -1,15 +1,14 @@
 import pandas as pd
-import os
 import streamlit as st
 import sqlite3
 from datetime import datetime
 from PIL import Image
 import hashlib
 import socket
+import os
 
 st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# ====== إعداد قاعدة البيانات ======
 conn = sqlite3.connect('users.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -22,17 +21,14 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
             )''')
 conn.commit()
 
-# ====== دالة توليد Hash لكلمة المرور ======
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ====== عرض الشعار ======
 if os.path.exists("logo.png"):
     logo = Image.open("logo.png")
     st.image(logo, width=120)
 st.markdown('<p style="font-size:36px; text-align:center; font-weight:bold;">Expiry Checker 🧪</p>', unsafe_allow_html=True)
 
-# ====== تسجيل الدخول ======
 st.markdown("## تسجيل الدخول")
 username = st.text_input("👤 اسم المستخدم:")
 password = st.text_input("🔑 كلمة المرور:", type="password")
@@ -62,7 +58,6 @@ if st.button("تسجيل الدخول"):
     else:
         st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
-# ====== تسجيل الخروج ======
 if st.session_state.get('logged_in'):
     if st.button("🚪 تسجيل الخروج"):
         c.execute("UPDATE users SET is_logged_in = 0 WHERE username = ?", (st.session_state['username'],))
@@ -71,7 +66,6 @@ if st.session_state.get('logged_in'):
         st.success("✅ تم تسجيل الخروج.")
         st.stop()
 
-# ====== عرض ملف الأكسبايرات ======
 file_path = "المواد.xlsx"
 
 if st.session_state.get('logged_in'):
@@ -122,12 +116,26 @@ if st.session_state.get('logged_in'):
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 
-# ====== لوحة تحكم المسؤول ======
 if st.session_state.get('username') == 'admin':
     st.markdown("## 📊 لوحة التحكم")
     user_stats = pd.read_sql_query("SELECT username, last_login, ip_address FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC", conn)
     st.dataframe(user_stats)
     count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
     st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
+
+    st.markdown("## ➕ إضافة مستخدم جديد")
+    new_username = st.text_input("اسم المستخدم الجديد")
+    new_password = st.text_input("كلمة مرور المستخدم الجديد", type="password")
+    if st.button("إضافة المستخدم"):
+        if new_username and new_password:
+            try:
+                c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                          (new_username, hash_password(new_password)))
+                conn.commit()
+                st.success("✅ تم إضافة المستخدم بنجاح.")
+            except sqlite3.IntegrityError:
+                st.error("❌ اسم المستخدم موجود مسبقًا.")
+        else:
+            st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
 conn.close()
