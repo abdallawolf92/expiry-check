@@ -21,7 +21,7 @@ ip_address TEXT
 )''')
 conn.commit()
 
-إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
+# إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
 
 c.execute("SELECT COUNT(*) FROM users")
 user_count = c.fetchone()[0]
