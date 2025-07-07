@@ -7,6 +7,7 @@ import hashlib
 import socket
 import os
 import time
+import re
 
 st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
@@ -111,14 +112,20 @@ if st.session_state.get('logged_in'):
             st.error("The file does not contain the required columns.")
             st.stop()
 
-        df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip()
+        # تنظيف عمود اسم المادة من الأقواس والفراغات المكررة
+        def clean_text(text):
+            text = str(text)
+            text = re.sub(r"[()]", "", text)  # إزالة الأقواس
+            text = re.sub(r"\s+", " ", text)  # إزالة الفراغات المتكررة
+            return text.strip().lower()       # تحويل إلى حروف صغيرة
+
+        df['cleaned_name'] = df['اسم المادة'].apply(clean_text)
 
         search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name to search...")
 
         if search_query.strip() != "":
-            filtered_df = df[
-                df['اسم المادة'].str.contains(search_query.strip(), case=False, na=False)
-            ].copy()
+            search_clean = clean_text(search_query.strip())
+            filtered_df = df[df['cleaned_name'].str.contains(search_clean, na=False)].copy()
 
             if not filtered_df.empty:
                 filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
@@ -139,7 +146,7 @@ if st.session_state.get('logged_in'):
                 filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
 
                 st.write(f"Results found: {len(filtered_df)}")
-                st.dataframe(filtered_df)
+                st.dataframe(filtered_df.drop(columns=['cleaned_name']))
             else:
                 st.info("No results found for this search.")
         else:
