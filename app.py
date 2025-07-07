@@ -1,158 +1,53 @@
 import pandas as pd
 import streamlit as st
-import sqlite3
-from datetime import datetime, timedelta, timezone
-from PIL import Image
-import hashlib
-import socket
-import os
-import time
-import re
 
-st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide")
 
-# Splash Screen
-if 'splash_shown' not in st.session_state:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", width=250)
-    st.write("Expiry Checker - Unimedica")
-    time.sleep(1.5)
-    st.session_state['splash_shown'] = True
-    st.rerun()
+st.title("🔎 Expiry Checker - Search Materials")
 
-# Database
-conn = sqlite3.connect('users.db', check_same_thread=False)
-c = conn.cursor()
-c.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password_hash TEXT,
-        last_login TEXT,
-        is_logged_in INTEGER DEFAULT 0,
-        ip_address TEXT
-    )
-''')
-conn.commit()
-
-# Create admin if empty
-c.execute("SELECT COUNT(*) FROM users")
-if c.fetchone()[0] == 0:
-    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
-              ("admin", hashlib.sha256("2025".encode()).hexdigest()))
-    conn.commit()
-    st.success("Admin account created: admin/2025")
-
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-baghdad_tz = timezone(timedelta(hours=3))
-
-# Auto logout after 30 sec
-c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
-for user_id, last_login, is_logged_in in c.fetchall():
-    if last_login:
-        last_login_time = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
-        if datetime.now(baghdad_tz) - last_login_time.replace(tzinfo=baghdad_tz) > timedelta(seconds=30):
-            c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
-            conn.commit()
-
-# UI
-if os.path.exists("logo.png"):
-    st.image("logo.png", width=120)
-st.title("Expiry Checker")
-
-username = st.text_input("Username")
-password = st.text_input("Password", type="password", on_change=lambda: st.session_state.update({'enter_login': True}))
-ip_address = socket.gethostbyname(socket.gethostname())
-
-# Login
-if st.button("Login") or st.session_state.get('enter_login'):
-    st.session_state.pop('enter_login', None)
-    if username and password:
-        c.execute("SELECT id, password_hash, is_logged_in FROM users WHERE username = ?", (username,))
-        result = c.fetchone()
-        if result:
-            user_id, stored_hash, is_logged_in = result
-            if hash_password(password) == stored_hash:
-                if is_logged_in:
-                    st.error("This account is already logged in elsewhere.")
-                else:
-                    current_time = datetime.now(baghdad_tz).strftime("%Y-%m-%d %H:%M:%S")
-                    c.execute("UPDATE users SET last_login = ?, is_logged_in = 1, ip_address = ? WHERE id = ?",
-                              (current_time, ip_address, user_id))
-                    conn.commit()
-                    st.success("Logged in successfully.")
-                    st.session_state['logged_in'] = True
-                    st.session_state['username'] = username
-            else:
-                st.error("Incorrect password.")
-        else:
-            st.error("User does not exist.")
-    else:
-        st.warning("Please enter both username and password.")
-
-# Logout
-if st.session_state.get('logged_in'):
-    if st.button("Logout"):
-        c.execute("UPDATE users SET is_logged_in = 0 WHERE username = ?", (st.session_state['username'],))
-        conn.commit()
-        st.session_state.clear()
-        st.success("Logged out successfully.")
-        st.stop()
-
-# Main functionality
+# تحميل الملف
 file_path = "المواد.xlsx"
-if st.session_state.get('logged_in'):
-    if os.path.exists(file_path):
+
+def normalize_text(text):
+    text = str(text)
+    text = text.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ة','ه').replace('ى','ي')
+    text = text.replace('ؤ','و').replace('ئ','ي')
+    text = text.replace(' ','').lower()
+    return text
+
+if st.file_uploader("Upload المواد.xlsx if needed", type=["xlsx"], key="uploader") is not None:
+    file_path = st.session_state.uploader.name
+
+if st.button("📂 Load Data"):
+    if not os.path.exists(file_path):
+        st.error("⚠️ File المواد.xlsx not found in directory.")
+    else:
         df = pd.read_excel(file_path)
         df.columns = df.columns.str.strip()
-
+        
         if 'اسم المادة' not in df.columns:
-            st.error("The file does not contain the 'اسم المادة' column.")
-            st.stop()
-
-        # تنظيف نصوص البحث والاسم (إزالة الهمزات، الفراغات، الأقواس وتحويل إلى lowercase)
-        def normalize_text(text):
-            text = str(text)
-            text = re.sub(r"[()]", "", text)
-            text = re.sub(r"\s+", "", text)
-            text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ؤ', 'و').replace('ئ', 'ي').replace('ة', 'ه')
-            return text.lower()
-
-        df['normalized_name'] = df['اسم المادة'].apply(normalize_text)
-
-        search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name...")
-
-        if search_query.strip() != "":
-            search_normalized = normalize_text(search_query.strip())
-            filtered_df = df[df['normalized_name'].str.contains(search_normalized, na=False)].copy()
-
-            if not filtered_df.empty:
-                filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
-                filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-                today = pd.Timestamp(datetime.today().date())
-
-                def discount_label(exp_date):
-                    days_left = (exp_date - today).days
-                    if days_left <= 30:
-                        return "75% Discount"
-                    elif days_left <= 60:
-                        return "50% Discount"
-                    elif days_left <= 90:
-                        return "25% Discount"
-                    else:
-                        return "No Discount"
-
-                filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
-
-                st.write(f"Results found: {len(filtered_df)}")
-                st.dataframe(filtered_df[['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية', 'Discount']])
-            else:
-                st.info("No results found for this search.")
+            st.error("⚠️ Column 'اسم المادة' not found in the file.")
         else:
-            st.info("Type part of the material name to search.")
-    else:
-        st.warning("Materials file not found in the repository.")
+            st.session_state.df_loaded = True
+            df['normalized_name'] = df['اسم المادة'].apply(normalize_text)
+            st.session_state.df = df
+            st.success("✅ Data loaded successfully, ready for search.")
 
-conn.close()
+if 'df_loaded' in st.session_state and st.session_state.df_loaded:
+    search_query = st.text_input("🔍 Enter part of the material name to search (Arabic/English):").strip()
+    
+    if search_query != "":
+        normalized_query = normalize_text(search_query)
+        df = st.session_state.df
+        filtered_df = df[df['normalized_name'].str.contains(normalized_query, na=False)]
+        
+        if not filtered_df.empty:
+            st.success(f"✅ Found {len(filtered_df)} matching results:")
+            st.dataframe(filtered_df[['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية']])
+        else:
+            st.warning("⚠️ No results found for your search.")
+    else:
+        st.info("⌨️ Please enter a search term to display results.")
+
+else:
+    st.info("📌 Click 'Load Data' to prepare the file for searching.")
