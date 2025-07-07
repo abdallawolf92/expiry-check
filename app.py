@@ -10,7 +10,7 @@ import time
 
 st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# Splash Screen Simulation
+# Splash Screen
 if 'splash_shown' not in st.session_state:
     if os.path.exists("logo.png"):
         st.image("logo.png", width=250)
@@ -19,7 +19,7 @@ if 'splash_shown' not in st.session_state:
     st.session_state['splash_shown'] = True
     st.rerun()
 
-# Database connection and users table
+# Database
 conn = sqlite3.connect('users.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''
@@ -34,7 +34,7 @@ c.execute('''
 ''')
 conn.commit()
 
-# Create admin user if no users exist
+# Create admin if empty
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
@@ -45,10 +45,9 @@ if c.fetchone()[0] == 0:
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Baghdad timezone for auto-logout
 baghdad_tz = timezone(timedelta(hours=3))
 
-# Auto logout after 30 seconds of inactivity
+# Auto logout after 30 sec
 c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
 for user_id, last_login, is_logged_in in c.fetchall():
     if last_login:
@@ -57,6 +56,7 @@ for user_id, last_login, is_logged_in in c.fetchall():
             c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
             conn.commit()
 
+# UI
 if os.path.exists("logo.png"):
     st.image("logo.png", width=120)
 st.title("Expiry Checker")
@@ -65,7 +65,7 @@ username = st.text_input("Username")
 password = st.text_input("Password", type="password", on_change=lambda: st.session_state.update({'enter_login': True}))
 ip_address = socket.gethostbyname(socket.gethostname())
 
-# Login section
+# Login
 if st.button("Login") or st.session_state.get('enter_login'):
     st.session_state.pop('enter_login', None)
     if username and password:
@@ -100,77 +100,53 @@ if st.session_state.get('logged_in'):
         st.success("Logged out successfully.")
         st.stop()
 
-# Main system: Load and filter materials file
+# Main functionality
 file_path = "المواد.xlsx"
 if st.session_state.get('logged_in'):
     if os.path.exists(file_path):
         df = pd.read_excel(file_path)
-
-        # Ensure columns exist
+        df.columns = df.columns.str.strip()
         if not {'اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية'}.issubset(df.columns):
             st.error("The file does not contain the required columns.")
             st.stop()
 
-        # Clean name column to improve search accuracy
         df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip()
 
-      search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name...")
+        search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name to search...")
 
-if search_query.strip() != "":
-    filtered_df = df[
-        df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
-    ].copy()
+        if search_query.strip() != "":
+            filtered_df = df[
+                df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
+            ].copy()
 
-    if not filtered_df.empty:
-        filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
-        filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-        today = pd.Timestamp(datetime.today().date())
+            if not filtered_df.empty:
+                filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
+                filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
+                today = pd.Timestamp(datetime.today().date())
 
-        def discount_label(exp_date):
-            days_left = (exp_date - today).days
-            if days_left <= 30:
-                return "75% Discount"
-            elif days_left <= 60:
-                return "50% Discount"
-            elif days_left <= 90:
-                return "25% Discount"
+                def discount_label(exp_date):
+                    days_left = (exp_date - today).days
+                    if days_left <= 30:
+                        return "75% Discount"
+                    elif days_left <= 60:
+                        return "50% Discount"
+                    elif days_left <= 90:
+                        return "25% Discount"
+                    else:
+                        return "No Discount"
+
+                filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
+
+                st.write(f"Results found: {len(filtered_df)}")
+                st.dataframe(filtered_df)
             else:
-                return "No Discount"
-
-        filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
-
-        st.write(f"Results found: {len(filtered_df)}")
-        st.dataframe(filtered_df)
-    else:
-        st.info("No results found for this search.")
-else:
-    st.info("Please type part of the material name to search.")
-
-
-        # Process expiration dates and discount labeling
-        filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
-        filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-        today = pd.Timestamp(datetime.today().date())
-
-        def discount_label(exp_date):
-            days_left = (exp_date - today).days
-            if days_left <= 30:
-                return "75% Discount"
-            elif days_left <= 60:
-                return "50% Discount"
-            elif days_left <= 90:
-                return "25% Discount"
-            else:
-                return "No Discount"
-
-        filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
-
-        st.write(f"Results found: {len(filtered_df)}")
-        st.dataframe(filtered_df)
+                st.info("No results found for this search.")
+        else:
+            st.info("Type part of the material name to search.")
     else:
         st.warning("Materials file not found in the repository.")
 
-# Admin dashboard for managing users
+# Admin dashboard
 if st.session_state.get('username') == 'admin':
     st.subheader("Admin Dashboard")
     user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
