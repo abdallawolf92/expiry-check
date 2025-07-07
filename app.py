@@ -19,6 +19,7 @@ if 'splash_shown' not in st.session_state:
     st.session_state['splash_shown'] = True
     st.rerun()
 
+# Database connection and users table
 conn = sqlite3.connect('users.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''
@@ -33,6 +34,7 @@ c.execute('''
 ''')
 conn.commit()
 
+# Create admin user if no users exist
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
@@ -43,8 +45,10 @@ if c.fetchone()[0] == 0:
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+# Baghdad timezone for auto-logout
 baghdad_tz = timezone(timedelta(hours=3))
 
+# Auto logout after 30 seconds of inactivity
 c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
 for user_id, last_login, is_logged_in in c.fetchall():
     if last_login:
@@ -61,6 +65,7 @@ username = st.text_input("Username")
 password = st.text_input("Password", type="password", on_change=lambda: st.session_state.update({'enter_login': True}))
 ip_address = socket.gethostbyname(socket.gethostname())
 
+# Login section
 if st.button("Login") or st.session_state.get('enter_login'):
     st.session_state.pop('enter_login', None)
     if username and password:
@@ -86,6 +91,7 @@ if st.button("Login") or st.session_state.get('enter_login'):
     else:
         st.warning("Please enter both username and password.")
 
+# Logout
 if st.session_state.get('logged_in'):
     if st.button("Logout"):
         c.execute("UPDATE users SET is_logged_in = 0 WHERE username = ?", (st.session_state['username'],))
@@ -94,26 +100,31 @@ if st.session_state.get('logged_in'):
         st.success("Logged out successfully.")
         st.stop()
 
+# Main system: Load and filter materials file
 file_path = "المواد.xlsx"
 if st.session_state.get('logged_in'):
     if os.path.exists(file_path):
         df = pd.read_excel(file_path)
+
+        # Ensure columns exist
         if not {'اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية'}.issubset(df.columns):
             st.error("The file does not contain the required columns.")
             st.stop()
 
-        search_query = st.text_input("Search by Material Name or Lot Number", placeholder="Type here to search...")
+        # Clean name column to improve search accuracy
+        df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip()
+
+        search_query = st.text_input("Search by Material Name", placeholder="Type material name here...")
         if search_query:
             filtered_df = df[
-                df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False) |
-                df['رقم الدفعة'].astype(str).str.contains(search_query, case=False, na=False)
+                df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
             ].copy()
         else:
             filtered_df = df.copy()
 
+        # Process expiration dates and discount labeling
         filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
         filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-
         today = pd.Timestamp(datetime.today().date())
 
         def discount_label(exp_date):
@@ -134,6 +145,7 @@ if st.session_state.get('logged_in'):
     else:
         st.warning("Materials file not found in the repository.")
 
+# Admin dashboard for managing users
 if st.session_state.get('username') == 'admin':
     st.subheader("Admin Dashboard")
     user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
