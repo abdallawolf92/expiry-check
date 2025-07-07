@@ -108,24 +108,25 @@ if st.session_state.get('logged_in'):
         df = pd.read_excel(file_path)
         df.columns = df.columns.str.strip()
 
-        if not {'اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية'}.issubset(df.columns):
-            st.error("The file does not contain the required columns.")
+        if 'اسم المادة' not in df.columns:
+            st.error("The file does not contain the 'اسم المادة' column.")
             st.stop()
 
-        # تنظيف عمود اسم المادة من الأقواس والفراغات المكررة
-        def clean_text(text):
+        # تنظيف نصوص البحث والاسم (إزالة الهمزات، الفراغات، الأقواس وتحويل إلى lowercase)
+        def normalize_text(text):
             text = str(text)
-            text = re.sub(r"[()]", "", text)  # إزالة الأقواس
-            text = re.sub(r"\s+", " ", text)  # إزالة الفراغات المتكررة
-            return text.strip().lower()       # تحويل إلى حروف صغيرة
+            text = re.sub(r"[()]", "", text)
+            text = re.sub(r"\s+", "", text)
+            text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ؤ', 'و').replace('ئ', 'ي').replace('ة', 'ه')
+            return text.lower()
 
-        df['cleaned_name'] = df['اسم المادة'].apply(clean_text)
+        df['normalized_name'] = df['اسم المادة'].apply(normalize_text)
 
-        search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name to search...")
+        search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name...")
 
         if search_query.strip() != "":
-            search_clean = clean_text(search_query.strip())
-            filtered_df = df[df['cleaned_name'].str.contains(search_clean, na=False)].copy()
+            search_normalized = normalize_text(search_query.strip())
+            filtered_df = df[df['normalized_name'].str.contains(search_normalized, na=False)].copy()
 
             if not filtered_df.empty:
                 filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
@@ -146,49 +147,12 @@ if st.session_state.get('logged_in'):
                 filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
 
                 st.write(f"Results found: {len(filtered_df)}")
-                st.dataframe(filtered_df.drop(columns=['cleaned_name']))
+                st.dataframe(filtered_df[['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية', 'Discount']])
             else:
                 st.info("No results found for this search.")
         else:
             st.info("Type part of the material name to search.")
     else:
         st.warning("Materials file not found in the repository.")
-
-# Admin dashboard
-if st.session_state.get('username') == 'admin':
-    st.subheader("Admin Dashboard")
-    user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
-    st.dataframe(user_stats)
-
-    count_today = pd.read_sql_query(
-        "SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')",
-        conn
-    )['count'][0]
-    st.info(f"Users logged in today: {count_today}")
-
-    st.subheader("Add New User")
-    new_username = st.text_input("New Username")
-    new_password = st.text_input("New User Password", type="password")
-    if st.button("Add User"):
-        if new_username and new_password:
-            try:
-                c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
-                          (new_username, hash_password(new_password)))
-                conn.commit()
-                st.success("User added successfully.")
-            except sqlite3.IntegrityError:
-                st.error("Username already exists.")
-        else:
-            st.warning("Please enter username and password.")
-
-    st.subheader("Delete User")
-    delete_user_id = st.number_input("Enter User ID to Delete", min_value=1, step=1)
-    if st.button("Delete User"):
-        try:
-            c.execute("DELETE FROM users WHERE id = ? AND username != 'admin'", (delete_user_id,))
-            conn.commit()
-            st.success("User deleted successfully (admin cannot be deleted).")
-        except Exception as e:
-            st.error(f"Error during deletion: {e}")
 
 conn.close()
