@@ -106,17 +106,20 @@ if st.session_state.get('logged_in'):
     if os.path.exists(file_path):
         df = pd.read_excel(file_path)
         df.columns = df.columns.str.strip()
+
+        st.write("Columns:", df.columns.tolist())  # Debug to see columns
+
         if not {'اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية'}.issubset(df.columns):
             st.error("The file does not contain the required columns.")
             st.stop()
 
-        df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip()
+        df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip().str.replace('أ', 'ا').str.replace('إ', 'ا').str.replace('آ', 'ا').str.replace('ى', 'ي')
 
         search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name to search...")
 
         if search_query.strip() != "":
             filtered_df = df[
-                df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
+                df['اسم المادة'].str.contains(search_query.strip(), case=False, na=False)
             ].copy()
 
             if not filtered_df.empty:
