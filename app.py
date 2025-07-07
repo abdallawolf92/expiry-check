@@ -114,13 +114,38 @@ if st.session_state.get('logged_in'):
         # Clean name column to improve search accuracy
         df['اسم المادة'] = df['اسم المادة'].astype(str).str.strip()
 
-        search_query = st.text_input("Search by Material Name", placeholder="Type material name here...")
-        if search_query:
-            filtered_df = df[
-                df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
-            ].copy()
-        else:
-            filtered_df = df.copy()
+      search_query = st.text_input("🔎 Search by Material Name", placeholder="Type part of the material name...")
+
+if search_query.strip() != "":
+    filtered_df = df[
+        df['اسم المادة'].astype(str).str.contains(search_query.strip(), case=False, na=False)
+    ].copy()
+
+    if not filtered_df.empty:
+        filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
+        filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
+        today = pd.Timestamp(datetime.today().date())
+
+        def discount_label(exp_date):
+            days_left = (exp_date - today).days
+            if days_left <= 30:
+                return "75% Discount"
+            elif days_left <= 60:
+                return "50% Discount"
+            elif days_left <= 90:
+                return "25% Discount"
+            else:
+                return "No Discount"
+
+        filtered_df['Discount'] = filtered_df['تاريخ الصلاحية'].apply(discount_label)
+
+        st.write(f"Results found: {len(filtered_df)}")
+        st.dataframe(filtered_df)
+    else:
+        st.info("No results found for this search.")
+else:
+    st.info("Please type part of the material name to search.")
+
 
         # Process expiration dates and discount labeling
         filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
