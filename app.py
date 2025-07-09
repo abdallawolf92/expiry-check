@@ -7,9 +7,9 @@ import hashlib
 import socket
 import os
 
-st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Expiry Checker 🧪", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# الاتصال بقاعدة البيانات وإنشاء جدول المستخدمين
+# الاتصال بقاعدة البيانات
 conn = sqlite3.connect('users.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users (
@@ -22,10 +22,9 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
 )''')
 conn.commit()
 
-# إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
+# إنشاء حساب admin تلقائي
 c.execute("SELECT COUNT(*) FROM users")
-user_count = c.fetchone()[0]
-if user_count == 0:
+if c.fetchone()[0] == 0:
     c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
               ("admin", hashlib.sha256("2025".encode()).hexdigest()))
     conn.commit()
@@ -39,9 +38,7 @@ baghdad_tz = timezone(timedelta(hours=3))
 
 # الخروج التلقائي بعد 30 ثانية
 c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
-active_users = c.fetchall()
-for user in active_users:
-    user_id, last_login, is_logged_in = user
+for user_id, last_login, is_logged_in in c.fetchall():
     if last_login:
         last_login_time = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
         if datetime.now(baghdad_tz) - last_login_time.replace(tzinfo=baghdad_tz) > timedelta(seconds=30):
@@ -50,18 +47,22 @@ for user in active_users:
 
 # عرض الشعار إذا موجود
 if os.path.exists("logo.png"):
-    logo = Image.open("logo.png")
-    st.image(logo, width=120)
+    st.image("logo.png", width=120)
 
-st.markdown('<p style="font-size:36px; text-align:center; font-weight:bold;">Expiry Checker 🧪</p>', unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #0077b6;'>Expiry Checker 🧪</h1>", unsafe_allow_html=True)
 
-# تسجيل الدخول
-st.markdown("## تسجيل الدخول")
-username = st.text_input("👤 اسم المستخدم:")
-password = st.text_input("🔑 كلمة المرور:", type="password")
+# ------------------- تسجيل الدخول -------------------
+st.divider()
+st.markdown("## 🗝️ تسجيل الدخول", unsafe_allow_html=True)
+col1, col2 = st.columns([2,2])
+with col1:
+    username = st.text_input("👤 اسم المستخدم:")
+with col2:
+    password = st.text_input("🔑 كلمة المرور:", type="password")
+
 ip_address = socket.gethostbyname(socket.gethostname())
 
-if st.button("تسجيل الدخول"):
+if st.button("🚪 تسجيل الدخول", type="primary"):
     if username and password:
         c.execute("SELECT id, password_hash, is_logged_in FROM users WHERE username = ?", (username,))
         result = c.fetchone()
@@ -85,17 +86,20 @@ if st.button("تسجيل الدخول"):
     else:
         st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
+# ------------------- زر تسجيل الخروج -------------------
 if st.session_state.get('logged_in'):
-    if st.button("🚪 تسجيل الخروج"):
+    if st.button("🔒 تسجيل الخروج", type="secondary"):
         c.execute("UPDATE users SET is_logged_in = 0 WHERE username = ?", (st.session_state['username'],))
         conn.commit()
         st.session_state.clear()
         st.success("✅ تم تسجيل الخروج.")
         st.stop()
 
+# ------------------- عرض ملف المواد -------------------
+st.divider()
 file_path = "المواد.xlsx"
-
 if st.session_state.get('logged_in'):
+    st.markdown("## 📦 المواد المنتهية والصلاحيات", unsafe_allow_html=True)
     if os.path.exists(file_path):
         try:
             df = pd.read_excel(file_path)
@@ -107,19 +111,12 @@ if st.session_state.get('logged_in'):
             st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
             st.stop()
 
-        search_query = st.text_input("🔎 ابحث باسم المادة هنا 👇", placeholder="اكتب اسم المادة للبحث...")
-
+        search_query = st.text_input("🔍 ابحث باسم المادة هنا:", placeholder="أدخل اسم المادة للبحث...")
         if search_query:
             filtered_df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False)].copy()
-
             filtered_df['تاريخ الصلاحية'] = filtered_df['تاريخ الصلاحية'].astype(str).str.replace('ص', 'AM').str.replace('م', 'PM')
-            filtered_df['تاريخ الصلاحية'] = pd.to_datetime(
-                filtered_df['تاريخ الصلاحية'],
-                format='%d/%m/%Y %I:%M:%S %p',
-                errors='coerce',
-                dayfirst=True
-            )
-            filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
+            filtered_df['تاريخ الصلاحية'] = pd.to_datetime(filtered_df['تاريخ الصلاحية'], format='%d/%m/%Y %I:%M:%S %p', errors='coerce', dayfirst=True)
+            filtered_df.dropna(subset=['تاريخ الصلاحية'], inplace=True)
 
             idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
@@ -138,24 +135,30 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            st.write(f"📦 عدد النتائج: {len(filtered_df)}")
-            st.dataframe(filtered_df)
+            st.success(f"✅ عدد النتائج: {len(filtered_df)}")
+            st.dataframe(filtered_df, use_container_width=True)
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 
-# لوحة التحكم وإدارة المستخدمين للمسؤول
+# ------------------- لوحة تحكم المسؤول -------------------
 if st.session_state.get('username') == 'admin':
-    st.markdown("## 📊 لوحة التحكم")
+    st.divider()
+    st.markdown("## ⚙️ لوحة تحكم المسؤول", unsafe_allow_html=True)
+
     user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
-    st.dataframe(user_stats)
+    st.dataframe(user_stats, use_container_width=True)
 
     count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
     st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
 
-    st.markdown("## ➕ إضافة مستخدم جديد")
-    new_username = st.text_input("اسم المستخدم الجديد")
-    new_password = st.text_input("كلمة مرور المستخدم الجديد", type="password")
-    if st.button("إضافة المستخدم"):
+    st.divider()
+    st.markdown("### ➕ إضافة مستخدم جديد", unsafe_allow_html=True)
+    col1, col2 = st.columns([2,2])
+    with col1:
+        new_username = st.text_input("👤 اسم المستخدم الجديد:")
+    with col2:
+        new_password = st.text_input("🔑 كلمة مرور المستخدم الجديد:", type="password")
+    if st.button("➕ إضافة المستخدم", type="primary"):
         if new_username and new_password:
             try:
                 c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
@@ -167,9 +170,10 @@ if st.session_state.get('username') == 'admin':
         else:
             st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
-    st.markdown("## 🗑️ حذف مستخدم")
+    st.divider()
+    st.markdown("### 🗑️ حذف مستخدم", unsafe_allow_html=True)
     delete_user_id = st.number_input("أدخل رقم ID للمستخدم المراد حذفه:", min_value=1, step=1)
-    if st.button("🗑️ حذف المستخدم"):
+    if st.button("🗑️ حذف المستخدم", type="secondary"):
         try:
             c.execute("DELETE FROM users WHERE id = ? AND username != 'admin'", (delete_user_id,))
             conn.commit()
@@ -177,5 +181,4 @@ if st.session_state.get('username') == 'admin':
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
-# إغلاق الاتصال بقاعدة البيانات
 conn.close()
