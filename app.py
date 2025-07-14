@@ -181,4 +181,30 @@ if st.session_state.get('username') == 'admin':
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
+    st.divider()
+    st.markdown("### 📤 رفع ملف مواد جديد", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("📁 اختر ملف Excel جديد (يجب أن يحتوي على الأعمدة: اسم المادة، رقم الدفعة، تاريخ الصلاحية)", type=["xlsx"])
+
+    if uploaded_file is not None:
+        try:
+            df_new = pd.read_excel(uploaded_file)
+            required_columns = {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}
+            if required_columns.issubset(df_new.columns):
+                # مسح الملف القديم إذا موجود
+                file_path = "المواد.xlsx"
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+
+                # حفظ الملف الجديد بنفس الاسم
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                st.success("✅ تم رفع الملف وتحديث المواد بنجاح.")
+                st.experimental_rerun()
+            else:
+                st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
+        except Exception as e:
+            st.error(f"❌ حدث خطأ أثناء قراءة الملف: {e}")
+
+# إغلاق الاتصال بقاعدة البيانات
 conn.close()
