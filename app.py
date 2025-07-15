@@ -200,7 +200,7 @@ if st.session_state.get('username') == 'admin':
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 st.success("✅ تم رفع الملف وتحديث المواد بنجاح.")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
         except Exception as e:
