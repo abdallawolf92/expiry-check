@@ -121,4 +121,7 @@ if st.session_state.get('logged_in'):
             st.error(f"❌ خطأ في قراءة الملف: {e}")
             st.stop()
 
-        if not {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}.issubset(df.columns):
+       if not {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}.issubset(df.columns):
+    st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
+    st.stop()
+
