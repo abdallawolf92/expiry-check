@@ -22,21 +22,12 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
 )''')
 conn.commit()
 
-# إنشاء حساب admin تلقائي من ملف config
+# إنشاء حساب admin تلقائي باستخدام secret من Streamlit Cloud
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
-    if os.path.exists("admin_config.txt"):
-        with open("admin_config.txt", "r") as f:
-            lines = f.readlines()
-        for line in lines:
-            if line.startswith("admin_password="):
-                admin_pass = line.strip().split("=")[1]
-                break
-        else:
-            st.error("❌ لم يتم العثور على admin_password في ملف config.")
-            st.stop()
-    else:
-        st.error("❌ لم يتم العثور على ملف admin_config.txt.")
+    admin_pass = st.secrets.get("ADMIN_PASSWORD")
+    if not admin_pass:
+        st.error("❌ لم يتم ضبط كلمة مرور الأدمن داخل secrets على Streamlit Cloud.")
         st.stop()
 
     c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
