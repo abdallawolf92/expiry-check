@@ -10,7 +10,7 @@ import os
 st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
 # الاتصال بقاعدة البيانات وإنشاء جدول المستخدمين
-conn = sqlite3.connect('users.db', check_same_thread=False)
+conn = sqlite3.connect('user.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
