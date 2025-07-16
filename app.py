@@ -77,13 +77,13 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.username = username
             st.success("✅ تم تسجيل الدخول بنجاح")
-            st.experimental_rerun()
+            st.stop()
         else:
             st.error(f"❌ {msg}")
     st.stop()
 
 # ---------- بعد تسجيل الدخول ----------
-st.markdown(f"### 👋 أهلا وسهلا، `{st.session_state.username}`")
+st.markdown(f"### 👋 أهلاً وسهلاً، `{st.session_state.username}`")
 
 st.divider()
 df = load_excel()
