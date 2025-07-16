@@ -1,115 +1,181 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from PIL import Image
 import hashlib
+import socket
 import os
 
-st.set_page_config(page_title="Expiry Checker 🧪", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# ---------- إعدادات ----------
-USER_DB = "user.db"
-EXCEL_FILE = "المواد.xlsx"
+# الاتصال بقاعدة البيانات وإنشاء جدول المستخدمين
+conn = sqlite3.connect('users.db', check_same_thread=False)
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password_hash TEXT,
+    last_login TEXT,
+    is_logged_in INTEGER DEFAULT 0,
+    ip_address TEXT
+)''')
+conn.commit()
 
-# ---------- دوال ----------
+# إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
+c.execute("SELECT COUNT(*) FROM users")
+user_count = c.fetchone()[0]
+if user_count == 0:
+    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+              ("admin", hashlib.sha256("2025".encode()).hexdigest()))
+    conn.commit()
+    st.success("✅ تم إنشاء حساب Admin تلقائي (admin/2025) عند أول تشغيل.")
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-def check_login(username, password):
-    if username == "admin":
-        admin_secret = st.secrets.get("admin", {}).get("password", None)
-        if admin_secret and password == admin_secret:
-            return True, ""
-        else:
-            return False, "كلمة مرور الأدمن غير صحيحة"
-    else:
-        if not os.path.exists(USER_DB):
-            return False, "قاعدة بيانات المستخدمين غير موجودة"
-        conn = sqlite3.connect(USER_DB)
-        c = conn.cursor()
-        c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+# توقيت بغداد
+baghdad_tz = timezone(timedelta(hours=3))
+
+# الخروج التلقائي بعد 30 ثانية
+c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
+active_users = c.fetchall()
+for user in active_users:
+    user_id, last_login, is_logged_in = user
+    if last_login:
+        last_login_time = datetime.strptime(last_login, "%Y-%m-%d %H:%M:%S")
+        if datetime.now(baghdad_tz) - last_login_time.replace(tzinfo=baghdad_tz) > timedelta(seconds=30):
+            c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
+            conn.commit()
+
+# عرض الشعار إذا موجود
+if os.path.exists("logo.png"):
+    logo = Image.open("logo.png")
+    st.image(logo, width=120)
+
+st.markdown('<p style="font-size:36px; text-align:center; font-weight:bold;">Expiry Checker 🧪</p>', unsafe_allow_html=True)
+
+# تسجيل الدخول
+st.markdown("## تسجيل الدخول")
+username = st.text_input("👤 اسم المستخدم:")
+password = st.text_input("🔑 كلمة المرور:", type="password")
+ip_address = socket.gethostbyname(socket.gethostname())
+
+if st.button("تسجيل الدخول"):
+    if username and password:
+        c.execute("SELECT id, password_hash, is_logged_in FROM users WHERE username = ?", (username,))
         result = c.fetchone()
-        conn.close()
-        if result and hash_password(password) == result[0]:
-            return True, ""
-        return False, "اسم المستخدم أو كلمة المرور غير صحيحة"
-
-def load_excel():
-    if not os.path.exists(EXCEL_FILE):
-        st.error("❌ ملف المواد غير موجود")
-        st.stop()
-    try:
-        df = pd.read_excel(EXCEL_FILE)
-        return df
-    except Exception as e:
-        st.error(f"❌ خطأ في قراءة ملف المواد: {e}")
-        st.stop()
-
-def calculate_discount(expiry_date):
-    today = pd.Timestamp(datetime.today().date())
-    days_left = (expiry_date - today).days
-    if days_left <= 30:
-        return "خصم 75%"
-    elif days_left <= 60:
-        return "خصم 50%"
-    elif days_left <= 90:
-        return "خصم 25%"
-    else:
-        return "لا يوجد خصم"
-
-# ---------- تسجيل الدخول ----------
-st.title("🧪 برنامج فحص المواد المنتهية")
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-
-if not st.session_state.logged_in:
-    st.subheader("🔐 تسجيل الدخول")
-    col1, col2 = st.columns(2)
-    with col1:
-        username = st.text_input("👤 اسم المستخدم")
-    with col2:
-        password = st.text_input("🔒 كلمة المرور", type="password")
-
-    if st.button("🚪 دخول"):
-        valid, msg = check_login(username, password)
-        if valid:
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.success("✅ تم تسجيل الدخول بنجاح")
-            st.stop()
+        if result:
+            user_id, stored_hash, is_logged_in = result
+            if hash_password(password) == stored_hash:
+                if is_logged_in:
+                    st.error("❌ هذا الحساب مسجل دخول في مكان آخر.")
+                else:
+                    current_time = datetime.now(baghdad_tz).strftime("%Y-%m-%d %H:%M:%S")
+                    c.execute("UPDATE users SET last_login = ?, is_logged_in = 1, ip_address = ? WHERE id = ?",
+                              (current_time, ip_address, user_id))
+                    conn.commit()
+                    st.success("✅ تم تسجيل الدخول بنجاح.")
+                    st.session_state['logged_in'] = True
+                    st.session_state['username'] = username
+            else:
+                st.error("❌ كلمة المرور غير صحيحة.")
         else:
-            st.error(f"❌ {msg}")
-    st.stop()
+            st.error("❌ المستخدم غير موجود.")
+    else:
+        st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
-# ---------- بعد تسجيل الدخول ----------
-st.markdown(f"### 👋 أهلاً وسهلاً، `{st.session_state.username}`")
+if st.session_state.get('logged_in'):
+    if st.button("🚪 تسجيل الخروج"):
+        c.execute("UPDATE users SET is_logged_in = 0 WHERE username = ?", (st.session_state['username'],))
+        conn.commit()
+        st.session_state.clear()
+        st.success("✅ تم تسجيل الخروج.")
+        st.stop()
 
-st.divider()
-df = load_excel()
+file_path = "المواد.xlsx"
 
-if not {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}.issubset(df.columns):
-    st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة")
-    st.stop()
+if st.session_state.get('logged_in'):
+    if os.path.exists(file_path):
+        try:
+            df = pd.read_excel(file_path)
+        except Exception as e:
+            st.error(f"❌ خطأ في قراءة الملف: {e}")
+            st.stop()
 
-try:
-    df['تاريخ الصلاحية'] = pd.to_datetime(df['تاريخ الصلاحية'], errors='coerce', dayfirst=True)
-except:
-    st.error("❌ خطأ في تحويل التاريخ")
-    st.stop()
+        if not {"اسم المادة", "رقم الدفعة", "تاريخ الصلاحية"}.issubset(df.columns):
+            st.error("❌ الملف لا يحتوي على الأعمدة المطلوبة.")
+            st.stop()
 
-search_query = st.text_input("🔍 ابحث عن اسم مادة أو رقم دفعة")
-if search_query:
-    df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False) |
-            df['رقم الدفعة'].astype(str).str.contains(search_query, case=False, na=False)]
+        search_query = st.text_input("🔎 ابحث باسم المادة هنا 👇", placeholder="اكتب اسم المادة للبحث...")
 
-df['الخصم'] = df['تاريخ الصلاحية'].apply(lambda x: calculate_discount(x) if pd.notnull(x) else "-")
+        if search_query:
+            filtered_df = df[df['اسم المادة'].astype(str).str.contains(search_query, case=False, na=False)].copy()
 
-st.subheader("📋 النتائج:")
-st.success(f"✅ عدد النتائج: {len(df)}")
-st.dataframe(df[["اسم المادة", "رقم الدفعة", "تاريخ الصلاحية", "الخصم"]], use_container_width=True)
+            filtered_df['تاريخ الصلاحية'] = filtered_df['تاريخ الصلاحية'].astype(str).str.replace('ص', 'AM').str.replace('م', 'PM')
+            filtered_df['تاريخ الصلاحية'] = pd.to_datetime(
+                filtered_df['تاريخ الصلاحية'],
+                format='%d/%m/%Y %I:%M:%S %p',
+                errors='coerce',
+                dayfirst=True
+            )
+            filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
 
-if st.button("🔒 تسجيل الخروج"):
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.experimental_rerun()
+            idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
+            filtered_df = filtered_df.loc[idx].reset_index(drop=True)
+
+            today = pd.Timestamp(datetime.today().date())
+            filtered_df['الخصم'] = ""
+
+            for i, row in filtered_df.iterrows():
+                days_left = (row['تاريخ الصلاحية'] - today).days
+                if days_left <= 30:
+                    filtered_df.at[i, 'الخصم'] = "خصم 75%"
+                elif days_left <= 60:
+                    filtered_df.at[i, 'الخصم'] = "خصم 50%"
+                elif days_left <= 90:
+                    filtered_df.at[i, 'الخصم'] = "خصم 25%"
+                else:
+                    filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
+
+            st.write(f"📦 عدد النتائج: {len(filtered_df)}")
+            st.dataframe(filtered_df)
+    else:
+        st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
+
+# لوحة التحكم وإدارة المستخدمين للمسؤول
+if st.session_state.get('username') == 'admin':
+    st.markdown("## 📊 لوحة التحكم")
+    user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
+    st.dataframe(user_stats)
+
+    count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
+    st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
+
+    st.markdown("## ➕ إضافة مستخدم جديد")
+    new_username = st.text_input("اسم المستخدم الجديد")
+    new_password = st.text_input("كلمة مرور المستخدم الجديد", type="password")
+    if st.button("إضافة المستخدم"):
+        if new_username and new_password:
+            try:
+                c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                          (new_username, hash_password(new_password)))
+                conn.commit()
+                st.success("✅ تم إضافة المستخدم بنجاح.")
+            except sqlite3.IntegrityError:
+                st.error("❌ اسم المستخدم موجود مسبقًا.")
+        else:
+            st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
+
+    st.markdown("## 🗑️ حذف مستخدم")
+    delete_user_id = st.number_input("أدخل رقم ID للمستخدم المراد حذفه:", min_value=1, step=1)
+    if st.button("🗑️ حذف المستخدم"):
+        try:
+            c.execute("DELETE FROM users WHERE id = ? AND username != 'admin'", (delete_user_id,))
+            conn.commit()
+            st.success("✅ تم حذف المستخدم بنجاح (لا يمكن حذف admin).")
+        except Exception as e:
+            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+
+# إغلاق الاتصال بقاعدة البيانات
+conn.close()
