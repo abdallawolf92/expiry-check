@@ -22,14 +22,17 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
 )''')
 conn.commit()
 
-# إنشاء حساب admin تلقائي إذا لم يكن هناك مستخدمون
-c.execute("SELECT COUNT(*) FROM users")
-user_count = c.fetchone()[0]
-if user_count == 0:
-    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
-              ("admin", hashlib.sha256("2025".encode()).hexdigest()))
-    conn.commit()
-    st.success("✅ تم إنشاء حساب Admin تلقائي (admin/2025) عند أول تشغيل.")
+# إنشاء حساب admin تلقائي إذا لم يكن موجود، بكلمة مرور من secrets
+try:
+    admin_password = st.secrets["admin_password"]
+    c.execute("SELECT * FROM users WHERE username = 'admin'")
+    if not c.fetchone():
+        c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                  ("admin", hashlib.sha256(admin_password.encode()).hexdigest()))
+        conn.commit()
+        st.success("✅ تم إنشاء حساب Admin تلقائي باستخدام كلمة المرور من secrets.")
+except KeyError:
+    st.error("⚠️ لم يتم العثور على admin_password في secrets. يرجى إضافته في إعدادات Streamlit Cloud.")
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -177,5 +180,5 @@ if st.session_state.get('username') == 'admin':
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
-# إغلاق الاتصال بقاعدة البيانات
+# إغلاق الاتصال
 conn.close()
