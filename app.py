@@ -1,3 +1,4 @@
+# ... [نفس البداية مع المكتبات والتجهيزات] ...
 import pandas as pd
 import streamlit as st
 import sqlite3
@@ -9,9 +10,10 @@ import os
 
 st.set_page_config(page_title="Expiry Checker", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
 
-# الاتصال بقاعدة البيانات وإنشاء جدول المستخدمين
 conn = sqlite3.connect('user.db', check_same_thread=False)
 c = conn.cursor()
+
+# إنشاء جدول المستخدمين
 c.execute('''CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
@@ -20,9 +22,17 @@ c.execute('''CREATE TABLE IF NOT EXISTS users (
     is_logged_in INTEGER DEFAULT 0,
     ip_address TEXT
 )''')
+
+# إنشاء جدول logins لتسجيل الدخولات
+c.execute('''CREATE TABLE IF NOT EXISTS logins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT,
+    login_time TEXT
+)''')
+
 conn.commit()
 
-# إنشاء حساب admin تلقائي إذا لم يكن موجود، بكلمة مرور من secrets
+# إنشاء حساب admin تلقائي من secrets
 try:
     admin_password = st.secrets["admin_password"]
     c.execute("SELECT * FROM users WHERE username = 'admin'")
@@ -40,7 +50,7 @@ def hash_password(password):
 # توقيت بغداد
 baghdad_tz = timezone(timedelta(hours=3))
 
-# الخروج التلقائي بعد 30 ثانية
+# تسجيل الخروج التلقائي بعد 30 ثانية
 c.execute("SELECT id, last_login, is_logged_in FROM users WHERE is_logged_in = 1")
 active_users = c.fetchall()
 for user in active_users:
@@ -51,10 +61,9 @@ for user in active_users:
             c.execute("UPDATE users SET is_logged_in = 0 WHERE id = ?", (user_id,))
             conn.commit()
 
-# عرض الشعار إذا موجود
+# الشعار
 if os.path.exists("logo.png"):
-    logo = Image.open("logo.png")
-    st.image(logo, width=120)
+    st.image(Image.open("logo.png"), width=120)
 
 st.markdown('<p style="font-size:36px; text-align:center; font-weight:bold;">Expiry Checker 🧪</p>', unsafe_allow_html=True)
 
@@ -77,6 +86,8 @@ if st.button("تسجيل الدخول"):
                     current_time = datetime.now(baghdad_tz).strftime("%Y-%m-%d %H:%M:%S")
                     c.execute("UPDATE users SET last_login = ?, is_logged_in = 1, ip_address = ? WHERE id = ?",
                               (current_time, ip_address, user_id))
+                    c.execute("INSERT INTO logins (username, login_time) VALUES (?, ?)",
+                              (username, current_time))
                     conn.commit()
                     st.success("✅ تم تسجيل الدخول بنجاح.")
                     st.session_state['logged_in'] = True
@@ -146,15 +157,21 @@ if st.session_state.get('logged_in'):
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 
-# لوحة التحكم وإدارة المستخدمين للمسؤول
+# لوحة الأدمن
 if st.session_state.get('username') == 'admin':
     st.markdown("## 📊 لوحة التحكم")
+
     user_stats = pd.read_sql_query("SELECT id, username, last_login, ip_address FROM users ORDER BY id ASC", conn)
     st.dataframe(user_stats)
 
-    count_today = pd.read_sql_query("SELECT COUNT(*) as count FROM users WHERE DATE(last_login) = DATE('now', 'localtime')", conn)['count'][0]
-    st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {count_today}")
+    # السجلات اليومية
+    st.markdown("## 🧾 سجلات الدخول لليوم")
+    today_str = datetime.now(baghdad_tz).strftime("%Y-%m-%d")
+    login_logs = pd.read_sql_query("SELECT username, login_time FROM logins WHERE DATE(login_time) = ?", conn, params=(today_str,))
+    st.info(f"✅ عدد المستخدمين الذين دخلوا اليوم: {len(login_logs)}")
+    st.dataframe(login_logs)
 
+    # إضافة مستخدم
     st.markdown("## ➕ إضافة مستخدم جديد")
     new_username = st.text_input("اسم المستخدم الجديد")
     new_password = st.text_input("كلمة مرور المستخدم الجديد", type="password")
@@ -170,6 +187,7 @@ if st.session_state.get('username') == 'admin':
         else:
             st.warning("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور.")
 
+    # حذف مستخدم
     st.markdown("## 🗑️ حذف مستخدم")
     delete_user_id = st.number_input("أدخل رقم ID للمستخدم المراد حذفه:", min_value=1, step=1)
     if st.button("🗑️ حذف المستخدم"):
