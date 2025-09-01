@@ -152,7 +152,7 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            # --- تعديل مطلوب: إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ثم إخفاء عمود "الكمية" ---
+            # --- إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ثم إخفاء عمود "الكمية" ---
             if 'الكمية' in filtered_df.columns:
                 qty_series = pd.to_numeric(filtered_df['الكمية'], errors='coerce').fillna(0)
                 mask = qty_series < 10
@@ -206,4 +206,4 @@ if st.session_state.get('username') == 'admin':
             st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
 # إغلاق الاتصال
-conn.close(
+conn.close()
