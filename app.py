@@ -205,33 +205,30 @@ if st.session_state.get("logged_in"):
                     idx = base.groupby("اسم المادة")["تاريخ الصلاحية"].idxmin()
                     filtered_df = base.loc[idx].reset_index(drop=True)
 
-                    today = pd.Timestamp(datetime.now(BAGHDAD_TZ).date())                    discounts = []
-                    for _, row in filtered_df.iterrows():
-                        exp = row["تاريخ الصلاحية"]
-                        qty = row["الكمية"] if not pd.isna(row["الكمية"]) else 0
-                        days_left = (exp - today).days
+                                # حساب الخصم حسب أقرب تاريخ صلاحية
+            today = pd.Timestamp(datetime.today().date())
+            filtered_df['الخصم'] = ""
 
-                        # احسب الخصم الأساسي حسب التاريخ
-                        if days_left <= 30:
-                            base = "خصم 75%"
-                        elif days_left <= 60:
-                            base = "خصم 50%"
-                        elif days_left <= 90:
-                            base = "خصم 25%"
-                        else:
-                            base = "لا يوجد خصم"
+            for i, row in filtered_df.iterrows():
+                days_left = (row['تاريخ الصلاحية'] - today).days
+                if days_left <= 30:
+                    filtered_df.at[i, 'الخصم'] = "خصم 75%"
+                elif days_left <= 60:
+                    filtered_df.at[i, 'الخصم'] = "خصم 50%"
+                elif days_left <= 90:
+                    filtered_df.at[i, 'الخصم'] = "خصم 25%"
+                else:
+                    filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-                        # أضف "\ كمية قليلة" داخل نفس الخلية إذا الكمية أقل من 10
-                        q = pd.to_numeric(qty, errors="coerce")
-                        if pd.isna(q):
-                            q = 0
-                        if q < 10:
-                            base = f"{base} \ كمية قليلة"
+            # --- إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ---
+            if 'الكمية' in filtered_df.columns:
+                qty_series = pd.to_numeric(filtered_df['الكمية'], errors='coerce').fillna(0)
+                mask = qty_series < 10
+                # نضيف الشارحة داخل نفس الخلية
+                filtered_df.loc[mask, 'الخصم'] = filtered_df.loc[mask, 'الخصم'] + " \\ كمية قليلة"
+                # إخفاء عمود "الكمية" عن العرض
+                filtered_df = filtered_df.drop(columns=['الكمية'])
 
-                        discounts.append(base)
-
-                    filtered_df["الخصم"] = discounts
-                    filtered_df = filtered_df.drop(columns=["الكمية"])
 
                     st.write(f"📦 عدد النتائج: {len(filtered_df)}")
                     st.dataframe(filtered_df, use_container_width=True)
@@ -300,3 +297,4 @@ if st.session_state.get("logged_in") and st.session_state.get("username") == "ad
             st.experimental_rerun()
         except Exception as e:
             st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+
