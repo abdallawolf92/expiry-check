@@ -152,6 +152,15 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
+            # === إضافة العمود المخفي "الكمية" وفحصه + إنشاء عمود "ملاحظة" الظاهر ===
+            if 'الكمية' in filtered_df.columns:
+                qty_series = pd.to_numeric(filtered_df['الكمية'], errors='coerce')
+                # عمود ظاهر للزبائن:
+                filtered_df['ملاحظة'] = ''
+                filtered_df.loc[qty_series < 10, 'ملاحظة'] = 'اتصل للتأكيد'
+                # إخفاء عمود الكمية عن العرض:
+                filtered_df = filtered_df.drop(columns=['الكمية'])
+
             st.write(f"📦 عدد النتائج: {len(filtered_df)}")
             st.dataframe(filtered_df)
     else:
