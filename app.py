@@ -135,7 +135,7 @@ if st.session_state.get('logged_in'):
             )
             filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
 
-            idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
+            idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxمن()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
             today = pd.Timestamp(datetime.today().date())
@@ -152,15 +152,29 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            # --- إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ---
-            if 'الكمية' in filtered_df.columns:
-                qty_series = pd.to_numeric(filtered_df['الكمية'], errors='coerce').fillna(0)
-                mask = qty_series < 10
-                filtered_df.loc[mask, 'الخصم'] = filtered_df.loc[mask, 'الخصم'].astype(str) + " \\ كمية قليلة"
+            # --- تطبيع أسماء الأعمدة + تحويل أرقام عربية هندية (إن وجدت) ---
+            filtered_df.rename(columns=lambda x: str(x).strip(), inplace=True)
 
-            # --- إخراج آمن: لا نعرض إلا الأعمدة الأربعة فقط مهما كان بالملف ---
-            # تنظيف أسماء الأعمدة من الفراغات العرضية
-            filtered_df.columns = filtered_df.columns.map(lambda x: str(x).strip())
+            def normalize_digits(val):
+                if pd.isna(val):
+                    return val
+                s = str(val).strip()
+                # تحويل الأرقام العربية-الهندية إلى لاتينية
+                trans = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+                s = s.translate(trans)
+                # إزالة فواصل ومسافات
+                s = s.replace(',', '').replace(' ', '')
+                return s
+
+            # --- إضافة "\ كمية قليلة" داخل خلية "الخصم" إذا الكمية ≤ 10 ---
+            if 'الكمية' in filtered_df.columns:
+                qty_clean = filtered_df['الكمية'].map(normalize_digits)
+                qty_series = pd.to_numeric(qty_clean, errors='coerce').fillna(0)
+                mask = qty_series <= 10  # عشرة فأقل
+                filtered_df['الخصم'] = filtered_df['الخصم'].astype(str).fillna('')
+                filtered_df.loc[mask, 'الخصم'] = filtered_df.loc[mask, 'الخصم'] + " \\ كمية قليلة"
+
+            # --- إخراج آمن: عرض 4 أعمدة فقط ---
             cols_to_show = [c for c in ['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية', 'الخصم'] if c in filtered_df.columns]
             display_df = filtered_df[cols_to_show].copy()
 
