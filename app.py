@@ -134,8 +134,8 @@ if st.session_state.get('logged_in'):
                 dayfirst=True
             )
             filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
+           idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
 
-            idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxمن()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
             today = pd.Timestamp(datetime.today().date())
@@ -226,3 +226,4 @@ if st.session_state.get('username') == 'admin':
 
 # إغلاق الاتصال
 conn.close()
+
