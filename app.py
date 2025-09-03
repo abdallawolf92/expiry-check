@@ -152,15 +152,20 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            # --- إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ثم إخفاء عمود "الكمية" ---
+            # --- إضافة "\ كمية قليلة" داخل نفس خلية "الخصم" إذا كانت الكمية < 10 ---
             if 'الكمية' in filtered_df.columns:
                 qty_series = pd.to_numeric(filtered_df['الكمية'], errors='coerce').fillna(0)
                 mask = qty_series < 10
                 filtered_df.loc[mask, 'الخصم'] = filtered_df.loc[mask, 'الخصم'].astype(str) + " \\ كمية قليلة"
-                filtered_df = filtered_df.drop(columns=['الكمية'])
 
-            st.write(f"📦 عدد النتائج: {len(filtered_df)}")
-            st.dataframe(filtered_df)
+            # --- إخراج آمن: لا نعرض إلا الأعمدة الأربعة فقط مهما كان بالملف ---
+            # تنظيف أسماء الأعمدة من الفراغات العرضية
+            filtered_df.columns = filtered_df.columns.map(lambda x: str(x).strip())
+            cols_to_show = [c for c in ['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية', 'الخصم'] if c in filtered_df.columns]
+            display_df = filtered_df[cols_to_show].copy()
+
+            st.write(f"📦 عدد النتائج: {len(display_df)}")
+            st.dataframe(display_df)
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 
