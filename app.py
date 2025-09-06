@@ -134,8 +134,8 @@ if st.session_state.get('logged_in'):
                 dayfirst=True
             )
             filtered_df = filtered_df.dropna(subset=['تاريخ الصلاحية'])
-           idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
 
+            idx = filtered_df.groupby('اسم المادة')['تاريخ الصلاحية'].idxmin()
             filtered_df = filtered_df.loc[idx].reset_index(drop=True)
 
             today = pd.Timestamp(datetime.today().date())
@@ -152,34 +152,8 @@ if st.session_state.get('logged_in'):
                 else:
                     filtered_df.at[i, 'الخصم'] = "لا يوجد خصم"
 
-            # --- تطبيع أسماء الأعمدة + تحويل أرقام عربية هندية (إن وجدت) ---
-            filtered_df.rename(columns=lambda x: str(x).strip(), inplace=True)
-
-            def normalize_digits(val):
-                if pd.isna(val):
-                    return val
-                s = str(val).strip()
-                # تحويل الأرقام العربية-الهندية إلى لاتينية
-                trans = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
-                s = s.translate(trans)
-                # إزالة فواصل ومسافات
-                s = s.replace(',', '').replace(' ', '')
-                return s
-
-            # --- إضافة "\ كمية قليلة" داخل خلية "الخصم" إذا الكمية ≤ 10 ---
-            if 'الكمية' in filtered_df.columns:
-                qty_clean = filtered_df['الكمية'].map(normalize_digits)
-                qty_series = pd.to_numeric(qty_clean, errors='coerce').fillna(0)
-                mask = qty_series <= 10  # عشرة فأقل
-                filtered_df['الخصم'] = filtered_df['الخصم'].astype(str).fillna('')
-                filtered_df.loc[mask, 'الخصم'] = filtered_df.loc[mask, 'الخصم'] + " \\ كمية قليلة"
-
-            # --- إخراج آمن: عرض 4 أعمدة فقط ---
-            cols_to_show = [c for c in ['اسم المادة', 'رقم الدفعة', 'تاريخ الصلاحية', 'الخصم'] if c in filtered_df.columns]
-            display_df = filtered_df[cols_to_show].copy()
-
-            st.write(f"📦 عدد النتائج: {len(display_df)}")
-            st.dataframe(display_df)
+            st.write(f"📦 عدد النتائج: {len(filtered_df)}")
+            st.dataframe(filtered_df)
     else:
         st.warning("⚠️ لم يتم العثور على ملف المواد داخل المستودع.")
 
